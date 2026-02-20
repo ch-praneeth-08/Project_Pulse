@@ -6,7 +6,7 @@ import PullRequestList from './PullRequestList';
 import IssueList from './IssueList';
 import ContributorList from './ContributorList';
 
-function DashboardContent({ data }) {
+function DashboardContent({ data, onAnalyzeCommit }) {
   const { meta, commits, branches, pullRequests, issues, contributors, cached } = data;
 
   return (
@@ -38,7 +38,13 @@ function DashboardContent({ data }) {
         <IssueList issues={issues} />
 
         {/* Contributors */}
-        <ContributorList contributors={contributors} />
+        <ContributorList
+          contributors={contributors}
+          commits={commits}
+          owner={meta.owner}
+          repo={meta.name}
+          onAnalyzeCommit={onAnalyzeCommit}
+        />
       </div>
     </div>
   );

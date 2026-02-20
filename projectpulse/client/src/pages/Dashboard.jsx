@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import RepoInput from '../components/RepoInput';
 import LoadingState from '../components/LoadingState';
@@ -13,6 +13,16 @@ import { fetchPulseData } from '../utils/api';
 
 function Dashboard() {
   const [pulseData, setPulseData] = useState(null);
+  const [analyzerSha, setAnalyzerSha] = useState('');
+  const commitAnalyzerRef = useRef(null);
+
+  const handleAnalyzeCommit = useCallback((sha) => {
+    setAnalyzerSha(sha);
+    // Scroll to the commit analyzer after a brief delay for state update
+    setTimeout(() => {
+      commitAnalyzerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  }, []);
 
   const pulseMutation = useMutation({
     mutationFn: fetchPulseData,
@@ -138,10 +148,15 @@ function Dashboard() {
             <ContributorHeatmap contributors={repoData.contributors} />
             
             {/* Detailed Dashboard Content */}
-            <DashboardContent data={repoData} />
+            <DashboardContent data={repoData} onAnalyzeCommit={handleAnalyzeCommit} />
 
             {/* AI Commit Analyzer */}
-            <CommitAnalyzer owner={repoData.meta.owner} repo={repoData.meta.name} />
+            <CommitAnalyzer
+              ref={commitAnalyzerRef}
+              owner={repoData.meta.owner}
+              repo={repoData.meta.name}
+              initialSha={analyzerSha}
+            />
           </>
         )}
       </main>

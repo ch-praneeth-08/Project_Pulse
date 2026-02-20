@@ -235,4 +235,55 @@ router.post('/commit/analyze', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/repos/:owner/:repo/contributors/:username/commits
+ * Fetch latest 5 commits by a specific contributor
+ */
+router.get('/repos/:owner/:repo/contributors/:username/commits', async (req, res, next) => {
+  try {
+    const { owner, repo, username } = req.params;
+
+    const cacheKey = `contributor-commits:${owner.toLowerCase()}/${repo.toLowerCase()}/${username.toLowerCase()}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    const token = process.env.GITHUB_TOKEN;
+    const url = `https://api.github.com/repos/${owner}/${repo}/commits?author=${username}&per_page=5`;
+    const headers = {
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'ProjectPulse'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(url, { headers });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return res.status(404).json({ error: 'Repository not found', code: 'REPO_NOT_FOUND' });
+      }
+      if (response.status === 403) {
+        return res.status(429).json({ error: 'Rate limited', code: 'RATE_LIMITED' });
+      }
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const commits = data.map(c => ({
+      sha: c.sha,
+      message: c.commit.message.split('\n')[0],
+      date: c.commit.author?.date || c.commit.committer?.date,
+      author: c.author?.login || c.commit.author?.name || username
+    }));
+
+    setCachedData(cacheKey, commits);
+    res.json(commits);
+
+  } catch (error) {
+    console.error('Error fetching contributor commits:', error.message);
+    next(error);
+  }
+});
+
 export default router;

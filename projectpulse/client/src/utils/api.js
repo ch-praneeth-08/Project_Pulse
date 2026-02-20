@@ -117,6 +117,24 @@ export async function analyzeCommit(owner, repo, sha) {
 }
 
 /**
+ * Fetch latest 5 commits by a specific contributor
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} username - Contributor's GitHub username
+ * @returns {Promise<Array>} Array of { sha, message, date, author }
+ */
+export async function fetchContributorCommits(owner, repo, username) {
+  const response = await fetch(`${API_BASE}/repos/${owner}/${repo}/contributors/${username}/commits`);
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to fetch contributor commits');
+  }
+
+  return data;
+}
+
+/**
  * Check API health
  * @returns {Promise<object>} Health status
  */

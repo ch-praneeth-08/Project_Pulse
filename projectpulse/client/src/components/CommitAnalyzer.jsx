@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, forwardRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
 import { analyzeCommit } from '../utils/api';
@@ -6,18 +6,36 @@ import { analyzeCommit } from '../utils/api';
 /**
  * CommitAnalyzer Component
  * Compact, scannable AI-powered commit diff analysis
+ * Supports both manual SHA input and external trigger via initialSha prop
  */
-function CommitAnalyzer({ owner, repo }) {
+const CommitAnalyzer = forwardRef(function CommitAnalyzer({ owner, repo, initialSha }, ref) {
   const [sha, setSha] = useState('');
+  const pendingShaRef = useRef(null);
 
   const mutation = useMutation({
-    mutationFn: () => analyzeCommit(owner, repo, sha.trim()),
+    mutationFn: (shaToAnalyze) => analyzeCommit(owner, repo, (shaToAnalyze || sha).trim()),
   });
+
+  // Auto-trigger when initialSha changes from parent (contributor click)
+  useEffect(() => {
+    if (initialSha && initialSha.length >= 7) {
+      setSha(initialSha);
+      pendingShaRef.current = initialSha;
+    }
+  }, [initialSha]);
+
+  // Trigger mutation after sha state updates from initialSha
+  useEffect(() => {
+    if (pendingShaRef.current && sha === pendingShaRef.current) {
+      mutation.mutate(pendingShaRef.current);
+      pendingShaRef.current = null;
+    }
+  }, [sha]);
 
   const handleAnalyze = (e) => {
     e.preventDefault();
     if (sha.trim().length >= 7) {
-      mutation.mutate();
+      mutation.mutate(sha.trim());
     }
   };
 
@@ -44,7 +62,7 @@ function CommitAnalyzer({ owner, repo }) {
   const ic = impactConfig[result?.changeImpact] || impactConfig.medium;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+    <div ref={ref} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
       {/* Header with SHA input */}
       <div className="px-6 py-4 border-b border-gray-100">
         <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
@@ -151,11 +169,14 @@ function CommitAnalyzer({ owner, repo }) {
       )}
     </div>
   );
-}
+});
+
+CommitAnalyzer.displayName = 'CommitAnalyzer';
 
 CommitAnalyzer.propTypes = {
   owner: PropTypes.string.isRequired,
   repo: PropTypes.string.isRequired,
+  initialSha: PropTypes.string,
 };
 
 export default CommitAnalyzer;
