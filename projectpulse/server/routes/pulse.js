@@ -8,6 +8,7 @@ import { fetchRepoData, parseRepoUrl } from '../services/githubService.js';
 import { getCachedData, setCachedData } from '../services/cacheService.js';
 import { generatePulseSummary } from '../services/ollamaService.js';
 import { streamChatResponse } from '../services/chatService.js';
+import { analyzeCommit } from '../services/commitAnalyzerService.js';
 
 const router = express.Router();
 
@@ -182,6 +183,55 @@ router.post('/chat', async (req, res) => {
       res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
       res.end();
     }
+  }
+});
+
+/**
+ * POST /api/commit/analyze
+ * Analyze a specific commit using AI
+ * Body: { owner: string, repo: string, sha: string }
+ */
+router.post('/commit/analyze', async (req, res, next) => {
+  try {
+    const { owner, repo, sha } = req.body;
+
+    if (!owner || typeof owner !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid owner parameter', code: 'INVALID_INPUT' });
+    }
+    if (!repo || typeof repo !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid repo parameter', code: 'INVALID_INPUT' });
+    }
+    if (!sha || typeof sha !== 'string' || sha.trim().length < 7) {
+      return res.status(400).json({ error: 'Missing or invalid sha parameter (min 7 characters)', code: 'INVALID_INPUT' });
+    }
+
+    // Cache check — commit SHAs are immutable so caching is safe
+    const cacheKey = `commit:${owner.toLowerCase()}/${repo.toLowerCase()}/${sha.toLowerCase()}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+      return res.json({ ...cached, cached: true });
+    }
+
+    const token = process.env.GITHUB_TOKEN;
+    const result = await analyzeCommit(owner, repo, sha.trim(), token);
+
+    setCachedData(cacheKey, result);
+
+    res.json({ ...result, cached: false });
+
+  } catch (error) {
+    console.error('Error in /api/commit/analyze:', error);
+
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message, code: 'COMMIT_NOT_FOUND' });
+    }
+    if (error.message.includes('rate limit')) {
+      return res.status(429).json({ error: error.message, code: 'RATE_LIMITED' });
+    }
+    if (error.message.includes('private') || error.message.includes('forbidden')) {
+      return res.status(403).json({ error: error.message, code: 'ACCESS_DENIED' });
+    }
+    next(error);
   }
 });
 

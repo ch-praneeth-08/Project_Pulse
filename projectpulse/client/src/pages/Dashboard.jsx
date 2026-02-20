@@ -8,6 +8,7 @@ import PulseSummary from '../components/PulseSummary';
 import ContributorHeatmap from '../components/ContributorHeatmap';
 import BlockerPanel from '../components/BlockerPanel';
 import ChatPanel from '../components/ChatPanel';
+import CommitAnalyzer from '../components/CommitAnalyzer';
 import { fetchPulseData } from '../utils/api';
 
 function Dashboard() {
@@ -138,6 +139,9 @@ function Dashboard() {
             
             {/* Detailed Dashboard Content */}
             <DashboardContent data={repoData} />
+
+            {/* AI Commit Analyzer */}
+            <CommitAnalyzer owner={repoData.meta.owner} repo={repoData.meta.name} />
           </>
         )}
       </main>

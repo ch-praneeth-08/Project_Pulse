@@ -91,6 +91,32 @@ export async function sendChatMessage(messages, repoContext, onChunk) {
 }
 
 /**
+ * Analyze a specific commit using AI
+ * @param {string} owner - Repository owner
+ * @param {string} repo - Repository name
+ * @param {string} sha - Commit SHA
+ * @returns {Promise<object>} Analysis result
+ */
+export async function analyzeCommit(owner, repo, sha) {
+  const response = await fetch(`${API_BASE}/commit/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ owner, repo, sha }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const error = new Error(data.error || 'Failed to analyze commit');
+    error.response = { data };
+    error.data = data;
+    throw error;
+  }
+
+  return data;
+}
+
+/**
  * Check API health
  * @returns {Promise<object>} Health status
  */

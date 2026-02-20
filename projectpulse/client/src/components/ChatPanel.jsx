@@ -3,6 +3,25 @@ import PropTypes from 'prop-types';
 import { sendChatMessage } from '../utils/api';
 
 /**
+ * Trim repoData to only what the chat LLM needs.
+ * The backend system prompt uses: meta, 20 commits, 15 branches, 10 PRs, 10 issues, 10 contributors, blockers.
+ * Sending the full object for large repos (LLVM: 500+ branches) causes payload-too-large errors.
+ */
+function trimForChat(data) {
+  if (!data) return data;
+  return {
+    meta: data.meta,
+    commits: (data.commits || []).slice(0, 30),
+    branches: (data.branches || []).slice(0, 20),
+    pullRequests: (data.pullRequests || []).slice(0, 15),
+    issues: (data.issues || []).slice(0, 15),
+    contributors: (data.contributors || []).slice(0, 15),
+    blockers: data.blockers || [],
+    fetchedAt: data.fetchedAt
+  };
+}
+
+/**
  * ChatPanel Component
  * Floating chat interface for asking questions about the repository
  */
@@ -47,7 +66,7 @@ function ChatPanel({ repoData }) {
     try {
       const fullResponse = await sendChatMessage(
         updatedMessages,
-        repoData,
+        trimForChat(repoData),
         (_chunk, accumulated) => {
           setStreamingText(accumulated);
         }
