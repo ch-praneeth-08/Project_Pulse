@@ -246,24 +246,40 @@ async function fetchContributors(owner, repo, token) {
 
 /**
  * Calculate contributor activity from commits
+ * Ensures all 7 days are present in commitsByDay (with 0 for missing days)
  */
 function enrichContributorsWithActivity(contributors, commits) {
-  const activityByAuthor = {};
+  // Generate last 7 days array (oldest to newest)
+  const last7Days = [];
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    last7Days.push(date.toISOString().split('T')[0]);
+  }
 
+  // Count commits per author per day
+  const activityByAuthor = {};
   commits.forEach(commit => {
     const author = commit.author;
     if (!activityByAuthor[author]) {
       activityByAuthor[author] = {};
     }
-
     const date = new Date(commit.date).toISOString().split('T')[0];
     activityByAuthor[author][date] = (activityByAuthor[author][date] || 0) + 1;
   });
 
-  return contributors.map(contributor => ({
-    ...contributor,
-    commitsByDay: activityByAuthor[contributor.login] || {}
-  }));
+  // Build commitsByDay with all 7 days (0 for missing days)
+  return contributors.map(contributor => {
+    const authorActivity = activityByAuthor[contributor.login] || {};
+    const commitsByDay = {};
+    last7Days.forEach(day => {
+      commitsByDay[day] = authorActivity[day] || 0;
+    });
+    return {
+      ...contributor,
+      commitsByDay
+    };
+  });
 }
 
 /**

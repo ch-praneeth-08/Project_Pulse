@@ -5,6 +5,7 @@ import LoadingState from '../components/LoadingState';
 import ErrorDisplay from '../components/ErrorDisplay';
 import DashboardContent from '../components/DashboardContent';
 import PulseSummary from '../components/PulseSummary';
+import ContributorHeatmap from '../components/ContributorHeatmap';
 import { fetchPulseData } from '../utils/api';
 
 function Dashboard() {
@@ -126,6 +127,9 @@ function Dashboard() {
             
             {/* AI-Generated Pulse Summary */}
             <PulseSummary summary={summary} summaryError={summaryError} />
+            
+            {/* Contributor Activity Heatmap */}
+            <ContributorHeatmap contributors={repoData.contributors} />
             
             {/* Detailed Dashboard Content */}
             <DashboardContent data={repoData} />
