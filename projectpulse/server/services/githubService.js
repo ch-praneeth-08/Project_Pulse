@@ -304,6 +304,86 @@ function markStaleBranches(branches, pullRequests, issues) {
 }
 
 /**
+ * Detect potential blockers by cross-referencing branches, PRs, and issues
+ */
+function detectBlockers(branches, pullRequests, issues) {
+  const blockers = [];
+  const now = new Date();
+
+  // Type 1: STALE_PR — Non-draft PR's branch inactive 2+ days
+  pullRequests.forEach(pr => {
+    if (pr.isDraft) return;
+    const branch = branches.find(b => b.name === pr.branch);
+    if (!branch) return;
+    if (branch.daysSinceLastCommit >= 2) {
+      const daysSinceUpdate = Math.floor((now - new Date(pr.updatedAt)) / (1000 * 60 * 60 * 24));
+      blockers.push({
+        type: 'STALE_PR',
+        severity: daysSinceUpdate >= 7 ? 'high' : 'medium',
+        title: `PR #${pr.number} "${pr.title}" — branch inactive ${branch.daysSinceLastCommit} days`,
+        description: `Branch ${pr.branch} last had a commit ${branch.daysSinceLastCommit} days ago. PR was opened by ${pr.author}.`,
+        relatedBranch: pr.branch,
+        relatedPR: { number: pr.number, title: pr.title, author: pr.author },
+        relatedIssue: null,
+        staleDays: branch.daysSinceLastCommit,
+        suggestedAction: `Review or merge PR #${pr.number}, or close if work is abandoned.`
+      });
+    }
+  });
+
+  // Type 2: LONG_RUNNING_PR — PR open 7+ days with no update in 3+ days
+  pullRequests.forEach(pr => {
+    const daysSinceCreated = Math.floor((now - new Date(pr.createdAt)) / (1000 * 60 * 60 * 24));
+    const daysSinceUpdated = Math.floor((now - new Date(pr.updatedAt)) / (1000 * 60 * 60 * 24));
+    if (daysSinceCreated >= 7 && daysSinceUpdated >= 3) {
+      const alreadyCaught = blockers.some(b => b.relatedPR?.number === pr.number);
+      if (!alreadyCaught) {
+        blockers.push({
+          type: 'LONG_RUNNING_PR',
+          severity: daysSinceCreated >= 14 ? 'high' : 'medium',
+          title: `PR #${pr.number} open for ${daysSinceCreated} days with no recent activity`,
+          description: `"${pr.title}" by ${pr.author} was last updated ${daysSinceUpdated} days ago.`,
+          relatedBranch: pr.branch,
+          relatedPR: { number: pr.number, title: pr.title, author: pr.author },
+          relatedIssue: null,
+          staleDays: daysSinceUpdated,
+          suggestedAction: `Follow up with ${pr.author} on PR #${pr.number}.`
+        });
+      }
+    }
+  });
+
+  // Type 3: UNASSIGNED_OLD_ISSUE — Issue open 14+ days with no assignee
+  issues.forEach(issue => {
+    const daysSinceCreated = Math.floor((now - new Date(issue.createdAt)) / (1000 * 60 * 60 * 24));
+    if (daysSinceCreated >= 14 && issue.assignees.length === 0) {
+      blockers.push({
+        type: 'UNASSIGNED_OLD_ISSUE',
+        severity: daysSinceCreated >= 30 ? 'high' : 'low',
+        title: `Issue #${issue.number} unassigned for ${daysSinceCreated} days`,
+        description: `"${issue.title}" has been open with no assignee.`,
+        relatedBranch: null,
+        relatedPR: null,
+        relatedIssue: { number: issue.number, title: issue.title },
+        staleDays: daysSinceCreated,
+        suggestedAction: `Assign issue #${issue.number} or triage into the backlog.`
+      });
+    }
+  });
+
+  // Sort by severity (high first), then by staleDays descending
+  const severityOrder = { high: 0, medium: 1, low: 2 };
+  blockers.sort((a, b) => {
+    if (severityOrder[a.severity] !== severityOrder[b.severity]) {
+      return severityOrder[a.severity] - severityOrder[b.severity];
+    }
+    return b.staleDays - a.staleDays;
+  });
+
+  return blockers;
+}
+
+/**
  * Main function to fetch all repository data in parallel
  * @param {string} repoUrl - The GitHub repository URL or owner/repo
  * @param {string} token - GitHub API token (optional but recommended)
@@ -350,6 +430,7 @@ export async function fetchRepoData(repoUrl, token) {
   // Enrich data
   const enrichedContributors = enrichContributorsWithActivity(contributors, commits);
   const enrichedBranches = markStaleBranches(branches, pullRequests, issues);
+  const blockers = detectBlockers(enrichedBranches, pullRequests, issues);
 
   return {
     meta,
@@ -358,6 +439,7 @@ export async function fetchRepoData(repoUrl, token) {
     pullRequests,
     issues,
     contributors: enrichedContributors,
+    blockers,
     fetchedAt: new Date().toISOString()
   };
 }

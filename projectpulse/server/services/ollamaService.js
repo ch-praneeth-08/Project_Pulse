@@ -4,7 +4,7 @@
  */
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:14b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'kimi-k2.5:cloud';
 const OLLAMA_TIMEOUT = 120000; // 120 seconds for local LLM (large prompts need more time)
 
 console.log(`Ollama Service initialized with model: ${OLLAMA_MODEL} at ${OLLAMA_BASE_URL}`);
@@ -86,6 +86,12 @@ function condenseRepoData(repoData) {
       title: issue.title,
       labels: issue.labels.map(l => l.name),
       createdAt: issue.createdAt
+    })),
+    blockers: (repoData.blockers || []).map(b => ({
+      type: b.type,
+      severity: b.severity,
+      title: b.title,
+      suggestedAction: b.suggestedAction
     }))
   };
 }
@@ -108,8 +114,11 @@ export async function generatePulseSummary(repoData) {
   "summary": "3-5 sentences covering: overall activity level, who is driving the work, any concerning patterns, and general momentum. Be specific — mention contributor names and numbers.",
   "highlights": ["array of 2-3 positive things happening in the repo"],
   "concerns": ["array of 1-3 specific concerns, or empty array if none"],
+  "blockers": ["array of 0-3 specific blocker descriptions in plain English. Each should name the PR/issue number and explain why it's blocked. Empty array if no blockers detected in the data."],
   "recommendation": "One actionable sentence the team should act on today."
 }
+
+If the "blockers" array in the project data below is non-empty, you MUST mention them in the summary and populate the blockers field. These are the most important signals for team health.
 
 Return only valid JSON. No markdown. No code fences. No explanation outside the JSON.
 
@@ -160,7 +169,7 @@ ${JSON.stringify(condensedData, null, 2)}`;
       const summary = JSON.parse(cleanedContent);
       
       // Validate required fields
-      const requiredFields = ['overallHealth', 'headline', 'summary', 'highlights', 'concerns', 'recommendation'];
+      const requiredFields = ['overallHealth', 'headline', 'summary', 'highlights', 'concerns', 'blockers', 'recommendation'];
       const missingFields = requiredFields.filter(field => !(field in summary));
       
       if (missingFields.length > 0) {
@@ -181,6 +190,9 @@ ${JSON.stringify(condensedData, null, 2)}`;
       }
       if (!Array.isArray(summary.concerns)) {
         summary.concerns = [];
+      }
+      if (!Array.isArray(summary.blockers)) {
+        summary.blockers = [];
       }
 
       return summary;

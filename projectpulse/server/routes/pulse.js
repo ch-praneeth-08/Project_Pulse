@@ -7,6 +7,7 @@ import express from 'express';
 import { fetchRepoData, parseRepoUrl } from '../services/githubService.js';
 import { getCachedData, setCachedData } from '../services/cacheService.js';
 import { generatePulseSummary } from '../services/ollamaService.js';
+import { streamChatResponse } from '../services/chatService.js';
 
 const router = express.Router();
 
@@ -119,15 +120,69 @@ router.post('/pulse', async (req, res, next) => {
 
 /**
  * POST /api/chat
- * Chat with AI about the repository (placeholder for now)
- * Body: { repoUrl: string, messages: [{role, content}], repoContext: object }
+ * Chat with AI about the repository using SSE streaming
+ * Body: { messages: [{role, content}], repoContext: object }
  */
 router.post('/chat', async (req, res) => {
-  // Placeholder for AI chat - will be implemented later
-  res.status(501).json({
-    error: 'Chat feature not yet implemented',
-    code: 'NOT_IMPLEMENTED'
-  });
+  try {
+    const { messages, repoContext } = req.body;
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({
+        error: 'Missing or invalid messages array',
+        code: 'INVALID_INPUT'
+      });
+    }
+
+    if (!repoContext || !repoContext.meta) {
+      return res.status(400).json({
+        error: 'Missing repoContext — run a pulse first',
+        code: 'MISSING_CONTEXT'
+      });
+    }
+
+    // Limit conversation to last 20 messages
+    const trimmedMessages = messages.slice(-20);
+
+    // Set up SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+
+    let fullResponse = '';
+
+    try {
+      fullResponse = await streamChatResponse(
+        trimmedMessages,
+        repoContext,
+        (chunk) => {
+          res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        }
+      );
+
+      res.write(`data: ${JSON.stringify({ done: true, fullResponse })}\n\n`);
+    } catch (streamError) {
+      console.error('Chat stream error:', streamError.message);
+      res.write(`data: ${JSON.stringify({ error: streamError.message })}\n\n`);
+    }
+
+    res.end();
+
+  } catch (error) {
+    console.error('Error in /api/chat:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: error.message || 'Chat service error',
+        code: 'CHAT_ERROR'
+      });
+    } else {
+      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+      res.end();
+    }
+  }
 });
 
 export default router;
