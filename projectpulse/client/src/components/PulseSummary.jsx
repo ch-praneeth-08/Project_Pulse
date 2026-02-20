@@ -139,6 +139,28 @@ function PulseSummary({ summary, summaryError }) {
             </div>
           )}
         </div>
+
+        {/* AI Blockers Section - Full width below highlights/concerns */}
+        {summary.blockers && summary.blockers.length > 0 && (
+          <div className="mt-4 bg-red-50 rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-red-800 mb-3 flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clipRule="evenodd" />
+              </svg>
+              Blockers Detected
+            </h3>
+            <ul className="space-y-2">
+              {summary.blockers.map((blocker, index) => (
+                <li key={index} className="flex items-start space-x-2 text-sm text-red-700">
+                  <svg className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span>{blocker}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Recommendation Callout */}
@@ -168,6 +190,7 @@ PulseSummary.propTypes = {
     summary: PropTypes.string,
     highlights: PropTypes.arrayOf(PropTypes.string),
     concerns: PropTypes.arrayOf(PropTypes.string),
+    blockers: PropTypes.arrayOf(PropTypes.string),
     recommendation: PropTypes.string
   }),
   summaryError: PropTypes.string

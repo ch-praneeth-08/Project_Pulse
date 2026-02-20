@@ -27,31 +27,67 @@ export async function fetchPulseData(repoUrl) {
 }
 
 /**
- * Send a chat message about the repository
- * @param {string} repoUrl - GitHub repository URL
- * @param {Array} messages - Chat messages array
- * @param {object} repoContext - Repository context data
- * @returns {Promise<object>} AI response
+ * Send a chat message and receive a streamed SSE response
+ * @param {Array} messages - Chat messages array [{role, content}]
+ * @param {object} repoContext - Full repoData object
+ * @param {function} onChunk - Called with (chunk, accumulatedText) as tokens arrive
+ * @returns {Promise<string>} The complete response text
  */
-export async function sendChatMessage(repoUrl, messages, repoContext) {
+export async function sendChatMessage(messages, repoContext, onChunk) {
   const response = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ repoUrl, messages, repoContext }),
+    body: JSON.stringify({ messages, repoContext }),
   });
 
-  const data = await response.json();
-
   if (!response.ok) {
-    const error = new Error(data.error || 'Failed to send chat message');
-    error.response = { data };
-    error.data = data;
-    throw error;
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
+      throw new Error(data.error || 'Chat request failed');
+    }
+    throw new Error(`Chat request failed: ${response.status}`);
   }
 
-  return data;
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let fullResponse = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const text = decoder.decode(value, { stream: true });
+    const lines = text.split('\n');
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const jsonStr = line.slice(6);
+
+      try {
+        const data = JSON.parse(jsonStr);
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        if (data.chunk) {
+          fullResponse += data.chunk;
+          if (onChunk) onChunk(data.chunk, fullResponse);
+        }
+
+        if (data.done) {
+          return data.fullResponse || fullResponse;
+        }
+      } catch (e) {
+        if (e.message && !e.message.includes('JSON')) throw e;
+      }
+    }
+  }
+
+  return fullResponse;
 }
 
 /**

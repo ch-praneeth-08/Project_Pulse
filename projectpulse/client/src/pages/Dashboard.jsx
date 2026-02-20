@@ -6,6 +6,8 @@ import ErrorDisplay from '../components/ErrorDisplay';
 import DashboardContent from '../components/DashboardContent';
 import PulseSummary from '../components/PulseSummary';
 import ContributorHeatmap from '../components/ContributorHeatmap';
+import BlockerPanel from '../components/BlockerPanel';
+import ChatPanel from '../components/ChatPanel';
 import { fetchPulseData } from '../utils/api';
 
 function Dashboard() {
@@ -127,7 +129,10 @@ function Dashboard() {
             
             {/* AI-Generated Pulse Summary */}
             <PulseSummary summary={summary} summaryError={summaryError} />
-            
+
+            {/* Blocker Detection Panel */}
+            <BlockerPanel blockers={repoData.blockers} />
+
             {/* Contributor Activity Heatmap */}
             <ContributorHeatmap contributors={repoData.contributors} />
             
@@ -136,6 +141,9 @@ function Dashboard() {
           </>
         )}
       </main>
+
+      {/* Floating Chat Panel */}
+      {repoData && <ChatPanel repoData={repoData} />}
     </div>
   );
 }
